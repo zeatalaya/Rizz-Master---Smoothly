@@ -105,7 +105,6 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      console.log("[send-code] response:", JSON.stringify(data));
       if (data.step === "otp_sent") {
         setSmsSent(data.smsSent);
         if (data.refreshToken) setRefreshToken(data.refreshToken);
@@ -128,15 +127,13 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
     setError(null);
 
     try {
-      console.log("[verify-code] sending with refreshToken length:", refreshToken.length, "phone:", phone.trim(), "deviceId:", deviceIds?.deviceId);
       const res = await fetch("/api/auth/verify-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code, type, phone: phone.trim(), refreshToken, deviceIds }),
       });
       const data = await res.json();
-      console.log("[verify-code] response:", JSON.stringify(data));
-      if (!res.ok) throw new Error(data.error + (data._debug ? ` | debug: ${JSON.stringify(data._debug)}` : ""));
+      if (!res.ok) throw new Error(data.error);
 
       if (data.step === "login_success") {
         onAuthenticated();
