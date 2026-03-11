@@ -130,7 +130,7 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
       const res = await fetch("/api/auth/verify-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, type, phone: phone.trim(), refreshToken, deviceIds }),
+        body: JSON.stringify({ code, type, phone: phone.trim(), email: maskedEmail, refreshToken, deviceIds }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);

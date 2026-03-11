@@ -181,13 +181,18 @@ export async function verifyPhoneOtp(phone: string, otp: string, refreshToken: s
   return sendAuthRequest({ phoneOtp }, ids);
 }
 
-export async function verifyEmailOtp(otp: string, refreshToken: string, ids: DeviceIds): Promise<AuthStep> {
-  return sendAuthRequest({
-    emailOtp: {
-      otp,
-      refreshToken: { value: refreshToken },
-    },
-  }, ids);
+export async function verifyEmailOtp(otp: string, refreshToken: string, ids: DeviceIds, email?: string): Promise<AuthStep> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const emailOtp: any = {
+    otp,
+  };
+  if (refreshToken) {
+    emailOtp.refreshToken = { value: refreshToken };
+  }
+  if (email) {
+    emailOtp.email = { value: email };
+  }
+  return sendAuthRequest({ emailOtp }, ids);
 }
 
 export async function validateToken(token: string): Promise<{ valid: boolean; name?: string; error?: string }> {
