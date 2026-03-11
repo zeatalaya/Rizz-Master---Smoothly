@@ -17,28 +17,19 @@ export async function POST(req: NextRequest) {
 
     console.log("[verify-code] session.refreshToken:", !!session.refreshToken, "clientRefreshToken:", !!clientRefreshToken, "phone:", phoneNumber);
 
-    if (!refreshToken) {
-      return NextResponse.json({
-        error: "No active auth session. Start over.",
-        _debug: {
-          sessionRefreshToken: !!session.refreshToken,
-          clientRefreshToken: !!clientRefreshToken,
-          clientRefreshTokenValue: clientRefreshToken?.slice(0, 10) || "empty",
-          phone: !!phone,
-          sessionPhone: !!session.phone,
-        },
-      }, { status: 400 });
-    }
-
     let result;
 
     if (type === "email") {
+      if (!refreshToken) {
+        return NextResponse.json({ error: "No refresh token for email step. Start over." }, { status: 400 });
+      }
       result = await verifyEmailOtp(code, refreshToken);
     } else {
       if (!phoneNumber) {
         return NextResponse.json({ error: "No phone number. Start over." }, { status: 400 });
       }
-      result = await verifyPhoneOtp(phoneNumber, code, refreshToken);
+      // refreshToken may be empty for the phone OTP step — that's OK
+      result = await verifyPhoneOtp(phoneNumber, code, refreshToken || "");
     }
 
     if (result.step === "error") {
