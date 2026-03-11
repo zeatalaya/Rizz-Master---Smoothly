@@ -6,7 +6,7 @@ interface LoginFlowProps {
   onAuthenticated: () => void;
 }
 
-type Step = "phone" | "phone_otp" | "email_otp";
+type Step = "phone" | "phone_otp" | "email_otp" | "token_input";
 
 export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
   const [step, setStep] = useState<Step>("phone");
@@ -18,6 +18,7 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
   const [error, setError] = useState<string | null>(null);
   const [smsSent, setSmsSent] = useState(false);
   const [refreshToken, setRefreshToken] = useState("");
+  const [manualToken, setManualToken] = useState("");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [deviceIds, setDeviceIds] = useState<any>(null);
 
@@ -162,6 +163,26 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
     }
   };
 
+  const submitToken = async () => {
+    if (!manualToken.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/set-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: manualToken.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      onAuthenticated();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to set token");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const OtpInput = ({
     otpState,
     setOtpState,
@@ -291,11 +312,59 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
           </div>
         )}
 
+        {/* Step: Token Input */}
+        {step === "token_input" && (
+          <div className="space-y-4">
+            <div className="text-center mb-4">
+              <h2 className="text-lg font-bold text-white">Enter Auth Token</h2>
+              <p className="text-gray-500 text-xs mt-1">
+                Run <code className="bg-white/10 px-1.5 py-0.5 rounded text-[11px]">node auth.mjs</code> in the project directory, or paste your Tinder auth token
+              </p>
+            </div>
+
+            <input
+              type="text"
+              value={manualToken}
+              onChange={(e) => setManualToken(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submitToken()}
+              placeholder="Paste your auth token here"
+              className="w-full px-4 py-3.5 rounded-xl bg-[#111] border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-[#FD297B]/50 text-center text-sm font-mono"
+              autoFocus
+            />
+
+            <button
+              onClick={submitToken}
+              disabled={loading || !manualToken.trim()}
+              className="w-full py-3.5 rounded-xl font-semibold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98]"
+              style={{ background: "var(--tinder-gradient)" }}
+            >
+              {loading ? "Verifying..." : "Connect"}
+            </button>
+
+            <button
+              onClick={() => { setStep("phone"); setError(null); }}
+              className="w-full py-2 text-xs text-gray-500 hover:text-gray-300"
+            >
+              Try phone login instead
+            </button>
+          </div>
+        )}
+
         {/* Error */}
         {error && (
           <div className="mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center">
             {error}
           </div>
+        )}
+
+        {/* Switch auth mode */}
+        {step === "phone" && (
+          <button
+            onClick={() => { setStep("token_input"); setError(null); }}
+            className="w-full py-2 mt-3 text-xs text-gray-500 hover:text-gray-300"
+          >
+            Use auth token instead
+          </button>
         )}
 
         {/* Progress indicator */}
