@@ -1,0 +1,60 @@
+import { NextRequest, NextResponse } from "next/server";
+import { verifyPhoneOtp, verifyEmailOtp, validateToken } from "@/lib/tinder-auth";
+import { getSession } from "@/lib/session";
+
+export async function POST(req: NextRequest) {
+  try {
+    const { code, type } = await req.json();
+    const session = await getSession();
+
+    if (!code || typeof code !== "string") {
+      return NextResponse.json({ error: "Code is required" }, { status: 400 });
+    }
+
+    if (!session.refreshToken) {
+      return NextResponse.json({ error: "No active auth session. Start over." }, { status: 400 });
+    }
+
+    let result;
+
+    if (type === "email") {
+      result = await verifyEmailOtp(code, session.refreshToken);
+    } else {
+      if (!session.phone) {
+        return NextResponse.json({ error: "No phone in session. Start over." }, { status: 400 });
+      }
+      result = await verifyPhoneOtp(session.phone, code, session.refreshToken);
+    }
+
+    if (result.step === "error") {
+      return NextResponse.json({ error: result.message }, { status: 400 });
+    }
+
+    // Update refresh token if provided
+    if ("refreshToken" in result && result.refreshToken) {
+      session.refreshToken = result.refreshToken;
+    }
+
+    // If login success, seal the token in the encrypted session (TEE)
+    if (result.step === "login_success") {
+      session.tinderToken = result.authToken;
+
+      // Validate and get user name
+      const validation = await validateToken(result.authToken);
+      if (validation.valid) {
+        session.userName = validation.name;
+      }
+
+      await session.save();
+      return NextResponse.json({ ...result, userName: session.userName });
+    }
+
+    await session.save();
+    return NextResponse.json(result);
+  } catch (err: unknown) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Verification failed" },
+      { status: 500 }
+    );
+  }
+}
