@@ -87,27 +87,64 @@ async function sendAuthRequest(payload: Record<string, unknown>, ids: DeviceIds)
   const encoded = AuthGatewayRequest.encode(message).finish();
   const buffer = Buffer.from(encoded);
 
-  const res = await fetch(AUTH_URL, {
-    method: "POST",
-    headers: {
-      ...getHeaders(ids),
-      "content-length": String(buffer.length),
-    },
-    body: buffer,
-  });
+  let res: Response;
+  try {
+    res = await fetch(AUTH_URL, {
+      method: "POST",
+      headers: {
+        ...getHeaders(ids),
+        "content-length": String(buffer.length),
+      },
+      body: buffer,
+    });
+  } catch (fetchErr: unknown) {
+    const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+    return { step: "error", message: `Tinder fetch failed: ${msg}` };
+  }
 
-  const respBuffer = Buffer.from(await res.arrayBuffer());
+  let respBuffer: Buffer;
+  try {
+    respBuffer = Buffer.from(await res.arrayBuffer());
+  } catch (readErr: unknown) {
+    const msg = readErr instanceof Error ? readErr.message : String(readErr);
+    return { step: "error", message: `Failed to read Tinder response body (HTTP ${res.status}): ${msg}` };
+  }
 
   if (respBuffer.length === 0) {
-    return { step: "error", message: `Empty response (${res.status})` };
+    return { step: "error", message: `Empty response from Tinder (HTTP ${res.status})` };
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const decoded = AuthGatewayResponse.decode(respBuffer) as any;
+  let decoded: any;
+  try {
+    decoded = AuthGatewayResponse.decode(respBuffer);
+  } catch (decodeErr: unknown) {
+    const msg = decodeErr instanceof Error ? decodeErr.message : String(decodeErr);
+    // Show a hex preview of the response for debugging
+    const hexPreview = respBuffer.slice(0, 64).toString("hex");
+    const textPreview = respBuffer.slice(0, 128).toString("utf8").replace(/[^\x20-\x7E]/g, ".");
+    return {
+      step: "error",
+      message: `Protobuf decode failed (HTTP ${res.status}, ${respBuffer.length} bytes): ${msg}. Hex: ${hexPreview}. Text: ${textPreview}`,
+    };
+  }
 
-  // Check for error
+  // Check for error — always include the numeric code for debugging
   if (decoded.error && decoded.error.code && decoded.error.code !== 0) {
-    return { step: "error", message: decoded.error.message || `Auth error (${decoded.error.code})` };
+    const protoMsg = decoded.error.message || "";
+    return {
+      step: "error",
+      message: `Tinder auth error code=${decoded.error.code}: ${protoMsg || "no message"}`,
+    };
+  }
+
+  // If HTTP status is not OK but no protobuf error was found, flag it
+  if (!res.ok) {
+    const dataField = decoded.data || "none";
+    return {
+      step: "error",
+      message: `Tinder HTTP ${res.status} but no protobuf error field. Response data oneof: ${dataField}`,
+    };
   }
 
   const resp = decoded;

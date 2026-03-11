@@ -106,7 +106,7 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
         body: JSON.stringify({ phone: phone.trim() }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) throw new Error(data.error || data._debug?.message || "Request failed");
 
       if (data.step === "otp_sent") {
         setSmsSent(data.smsSent);

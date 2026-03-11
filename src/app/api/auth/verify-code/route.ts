@@ -41,7 +41,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (result.step === "error") {
-      return NextResponse.json({ error: result.message }, { status: 400 });
+      console.error("[verify-code] Tinder auth error:", result.message);
+      return NextResponse.json(
+        { error: result.message, step: "error", _debug: { message: result.message } },
+        { status: 400 }
+      );
     }
 
     // Update refresh token if provided

@@ -17,7 +17,11 @@ export async function POST(req: NextRequest) {
     const result = await sendPhoneCode(cleanPhone, ids);
 
     if (result.step === "error") {
-      return NextResponse.json({ error: result.message }, { status: 400 });
+      console.error("[send-code] Tinder auth error:", result.message);
+      return NextResponse.json(
+        { error: result.message, step: "error", _debug: { message: result.message } },
+        { status: 400 }
+      );
     }
 
     // Store auth state + device IDs in session
