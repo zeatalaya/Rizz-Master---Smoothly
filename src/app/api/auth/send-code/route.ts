@@ -10,7 +10,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Phone number is required" }, { status: 400 });
     }
 
-    const result = await sendCode(phone);
+    // Ensure phone starts with +
+    const cleanPhone = phone.startsWith("+") ? phone : `+${phone}`;
+
+    const result = await sendCode(cleanPhone);
 
     if (!result.success) {
       return NextResponse.json({ error: result.error }, { status: 400 });
@@ -18,7 +21,7 @@ export async function POST(req: NextRequest) {
 
     // Store phone in session for the verify step
     const session = await getSession();
-    session.phone = phone;
+    session.phone = cleanPhone;
     await session.save();
 
     return NextResponse.json({ success: true });

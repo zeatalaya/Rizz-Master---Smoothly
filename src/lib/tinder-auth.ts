@@ -18,6 +18,24 @@ const HEADERS = {
   "app-version": "5430",
 };
 
+async function safeJson(res: Response): Promise<Record<string, unknown> | null> {
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function extractError(data: Record<string, unknown> | null, status: number, fallback: string): string {
+  if (!data) return `${fallback} (${status} — empty response)`;
+  const err = data.error as Record<string, unknown> | undefined;
+  if (err?.message && typeof err.message === "string") return err.message;
+  if (typeof data.error === "string") return data.error;
+  return `${fallback} (${status})`;
+}
+
 export async function sendCode(phoneNumber: string): Promise<{ success: boolean; error?: string }> {
   const res = await fetch(`${BASE_URL}/v2/auth/sms/send?auth_type=sms`, {
     method: "POST",
@@ -25,10 +43,10 @@ export async function sendCode(phoneNumber: string): Promise<{ success: boolean;
     body: JSON.stringify({ phone_number: phoneNumber }),
   });
 
-  const data = await res.json();
+  const data = await safeJson(res);
 
-  if (!res.ok || data?.error) {
-    return { success: false, error: data?.error?.message || `SMS send failed (${res.status})` };
+  if (!res.ok || (data && data.error)) {
+    return { success: false, error: extractError(data, res.status, "SMS send failed") };
   }
 
   return { success: true };
@@ -48,13 +66,14 @@ export async function verifyCode(
     }),
   });
 
-  const data = await res.json();
+  const data = await safeJson(res);
 
-  if (!res.ok || !data?.data?.refresh_token) {
-    return { error: data?.error?.message || `OTP verification failed (${res.status})` };
+  const nested = data?.data as Record<string, unknown> | undefined;
+  if (!res.ok || !nested?.refresh_token) {
+    return { error: extractError(data, res.status, "OTP verification failed") };
   }
 
-  return { refreshToken: data.data.refresh_token };
+  return { refreshToken: nested.refresh_token as string };
 }
 
 export async function loginWithToken(
@@ -70,11 +89,12 @@ export async function loginWithToken(
     }),
   });
 
-  const data = await res.json();
+  const data = await safeJson(res);
 
-  if (!res.ok || !data?.data?.api_token) {
-    return { error: data?.error?.message || `Login failed (${res.status})` };
+  const nested = data?.data as Record<string, unknown> | undefined;
+  if (!res.ok || !nested?.api_token) {
+    return { error: extractError(data, res.status, "Login failed") };
   }
 
-  return { authToken: data.data.api_token };
+  return { authToken: nested.api_token as string };
 }
