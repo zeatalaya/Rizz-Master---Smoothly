@@ -4,26 +4,30 @@ import { getSession } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
   try {
-    const { code, type } = await req.json();
+    const { code, type, phone, refreshToken: clientRefreshToken } = await req.json();
     const session = await getSession();
 
     if (!code || typeof code !== "string") {
       return NextResponse.json({ error: "Code is required" }, { status: 400 });
     }
 
-    if (!session.refreshToken) {
+    // Use client-provided values as fallback (session may not persist across serverless calls)
+    const refreshToken = session.refreshToken || clientRefreshToken;
+    const phoneNumber = session.phone || phone;
+
+    if (!refreshToken) {
       return NextResponse.json({ error: "No active auth session. Start over." }, { status: 400 });
     }
 
     let result;
 
     if (type === "email") {
-      result = await verifyEmailOtp(code, session.refreshToken);
+      result = await verifyEmailOtp(code, refreshToken);
     } else {
-      if (!session.phone) {
-        return NextResponse.json({ error: "No phone in session. Start over." }, { status: 400 });
+      if (!phoneNumber) {
+        return NextResponse.json({ error: "No phone number. Start over." }, { status: 400 });
       }
-      result = await verifyPhoneOtp(session.phone, code, session.refreshToken);
+      result = await verifyPhoneOtp(phoneNumber, code, refreshToken);
     }
 
     if (result.step === "error") {
@@ -35,9 +39,10 @@ export async function POST(req: NextRequest) {
       session.refreshToken = result.refreshToken;
     }
 
-    // If login success, seal the token in the encrypted session (TEE)
+    // If login success, seal the auth token in the encrypted session (TEE)
     if (result.step === "login_success") {
       session.tinderToken = result.authToken;
+      session.phone = phoneNumber;
 
       // Validate and get user name
       const validation = await validateToken(result.authToken);

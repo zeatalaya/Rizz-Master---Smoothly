@@ -17,6 +17,7 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [smsSent, setSmsSent] = useState(false);
+  const [refreshToken, setRefreshToken] = useState("");
 
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
   const emailOtpRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -99,6 +100,7 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
 
       if (data.step === "otp_sent") {
         setSmsSent(data.smsSent);
+        if (data.refreshToken) setRefreshToken(data.refreshToken);
         setStep("phone_otp");
         setTimeout(() => otpRefs.current[0]?.focus(), 100);
       } else if (data.step === "error") {
@@ -120,7 +122,7 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
       const res = await fetch("/api/auth/verify-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, type }),
+        body: JSON.stringify({ code, type, phone: phone.trim(), refreshToken }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -129,6 +131,7 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
         onAuthenticated();
       } else if (data.step === "email_required") {
         setMaskedEmail(data.email || "your email");
+        if (data.refreshToken) setRefreshToken(data.refreshToken);
         setStep("email_otp");
         setTimeout(() => emailOtpRefs.current[0]?.focus(), 100);
       } else if (data.step === "error") {
