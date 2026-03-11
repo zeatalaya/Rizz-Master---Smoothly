@@ -1,12 +1,13 @@
 /**
- * Tinder authentication via phone number + SMS OTP.
+ * Tinder auth helper.
  *
- * Flow:
- *   1. sendCode()    → Tinder sends an SMS to the user's phone
- *   2. verifyCode()  → User submits OTP → we get a refresh_token
- *   3. loginWithToken() → Exchange refresh_token for X-Auth-Token
+ * Since Tinder's v3 auth uses protobuf + arkose captcha, we extract
+ * the token from the user's existing Tinder web session instead.
  *
- * All calls run server-side inside our TEE boundary.
+ * The user logs into tinder.com normally, then uses our bookmarklet
+ * or manually copies the token from DevTools / localStorage.
+ *
+ * The token is then sealed in an iron-session encrypted cookie (TEE).
  */
 
 const BASE_URL = "https://api.gotinder.com";
@@ -18,83 +19,28 @@ const HEADERS = {
   "app-version": "5430",
 };
 
-async function safeJson(res: Response): Promise<Record<string, unknown> | null> {
-  const text = await res.text();
-  if (!text) return null;
+export async function validateToken(token: string): Promise<{ valid: boolean; name?: string; error?: string }> {
   try {
-    return JSON.parse(text);
-  } catch {
-    return null;
+    const res = await fetch(`${BASE_URL}/v2/profile?include=user`, {
+      headers: { ...HEADERS, "X-Auth-Token": token },
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = `Invalid token (${res.status})`;
+      try {
+        const json = JSON.parse(text);
+        if (json?.error?.message) msg = json.error.message;
+      } catch {
+        // ignore
+      }
+      return { valid: false, error: msg };
+    }
+
+    const data = await res.json();
+    const name = data?.data?.user?.name || "Unknown";
+    return { valid: true, name };
+  } catch (err: unknown) {
+    return { valid: false, error: err instanceof Error ? err.message : "Connection failed" };
   }
-}
-
-function extractError(data: Record<string, unknown> | null, status: number, fallback: string): string {
-  if (!data) return `${fallback} (${status} — empty response)`;
-  const err = data.error as Record<string, unknown> | undefined;
-  if (err?.message && typeof err.message === "string") return err.message;
-  if (typeof data.error === "string") return data.error;
-  return `${fallback} (${status})`;
-}
-
-export async function sendCode(phoneNumber: string): Promise<{ success: boolean; error?: string }> {
-  const res = await fetch(`${BASE_URL}/v2/auth/sms/send?auth_type=sms`, {
-    method: "POST",
-    headers: HEADERS,
-    body: JSON.stringify({ phone_number: phoneNumber }),
-  });
-
-  const data = await safeJson(res);
-
-  if (!res.ok || (data && data.error)) {
-    return { success: false, error: extractError(data, res.status, "SMS send failed") };
-  }
-
-  return { success: true };
-}
-
-export async function verifyCode(
-  phoneNumber: string,
-  otpCode: string
-): Promise<{ refreshToken?: string; error?: string }> {
-  const res = await fetch(`${BASE_URL}/v2/auth/sms/validate?auth_type=sms`, {
-    method: "POST",
-    headers: HEADERS,
-    body: JSON.stringify({
-      otp_code: otpCode,
-      phone_number: phoneNumber,
-      is_update: false,
-    }),
-  });
-
-  const data = await safeJson(res);
-
-  const nested = data?.data as Record<string, unknown> | undefined;
-  if (!res.ok || !nested?.refresh_token) {
-    return { error: extractError(data, res.status, "OTP verification failed") };
-  }
-
-  return { refreshToken: nested.refresh_token as string };
-}
-
-export async function loginWithToken(
-  refreshToken: string,
-  phoneNumber: string
-): Promise<{ authToken?: string; error?: string }> {
-  const res = await fetch(`${BASE_URL}/v2/auth/login/sms`, {
-    method: "POST",
-    headers: HEADERS,
-    body: JSON.stringify({
-      token: refreshToken,
-      phone_number: phoneNumber,
-    }),
-  });
-
-  const data = await safeJson(res);
-
-  const nested = data?.data as Record<string, unknown> | undefined;
-  if (!res.ok || !nested?.api_token) {
-    return { error: extractError(data, res.status, "Login failed") };
-  }
-
-  return { authToken: nested.api_token as string };
 }

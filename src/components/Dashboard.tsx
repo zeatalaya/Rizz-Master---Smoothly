@@ -114,7 +114,7 @@ export default function Dashboard() {
               </h1>
               <p className="text-gray-500">Smoothly analyze your Tinder game</p>
             </div>
-            <LoginFlow onAuthenticated={fetchStats} />
+            <LoginFlow onAuthenticated={() => fetchStats()} />
           </div>
         )}
 
