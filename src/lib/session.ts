@@ -20,6 +20,10 @@ export interface SessionData {
   refreshToken?: string;
   phone?: string;
   userName?: string;
+  deviceId?: string;
+  appSessionId?: string;
+  installId?: string;
+  funnelSessionId?: string;
 }
 
 const SESSION_OPTIONS = {

@@ -18,6 +18,8 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
   const [error, setError] = useState<string | null>(null);
   const [smsSent, setSmsSent] = useState(false);
   const [refreshToken, setRefreshToken] = useState("");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [deviceIds, setDeviceIds] = useState<any>(null);
 
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
   const emailOtpRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -106,12 +108,8 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
       console.log("[send-code] response:", JSON.stringify(data));
       if (data.step === "otp_sent") {
         setSmsSent(data.smsSent);
-        if (data.refreshToken) {
-          setRefreshToken(data.refreshToken);
-          console.log("[send-code] refreshToken set, length:", data.refreshToken.length);
-        } else {
-          console.warn("[send-code] NO refreshToken in response!", data._debug);
-        }
+        if (data.refreshToken) setRefreshToken(data.refreshToken);
+        if (data._deviceIds) setDeviceIds(data._deviceIds);
         setStep("phone_otp");
         setTimeout(() => otpRefs.current[0]?.focus(), 100);
       } else if (data.step === "error") {
@@ -130,11 +128,11 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
     setError(null);
 
     try {
-      console.log("[verify-code] sending with refreshToken length:", refreshToken.length, "phone:", phone.trim());
+      console.log("[verify-code] sending with refreshToken length:", refreshToken.length, "phone:", phone.trim(), "deviceId:", deviceIds?.deviceId);
       const res = await fetch("/api/auth/verify-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, type, phone: phone.trim(), refreshToken }),
+        body: JSON.stringify({ code, type, phone: phone.trim(), refreshToken, deviceIds }),
       });
       const data = await res.json();
       console.log("[verify-code] response:", JSON.stringify(data));

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sendPhoneCode } from "@/lib/tinder-auth";
+import { sendPhoneCode, generateDeviceIds } from "@/lib/tinder-auth";
 import { getSession } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
@@ -11,29 +11,31 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanPhone = phone.replace(/[\s()-]/g, "");
-    const result = await sendPhoneCode(cleanPhone);
+
+    // Generate device IDs and persist them in the session
+    const ids = generateDeviceIds();
+    const result = await sendPhoneCode(cleanPhone, ids);
 
     if (result.step === "error") {
       return NextResponse.json({ error: result.message }, { status: 400 });
     }
 
-    // Store auth state in session
+    // Store auth state + device IDs in session
     const session = await getSession();
     session.phone = cleanPhone;
+    session.deviceId = ids.deviceId;
+    session.appSessionId = ids.appSessionId;
+    session.installId = ids.installId;
+    session.funnelSessionId = ids.funnelSessionId;
     if ("refreshToken" in result) {
       session.refreshToken = result.refreshToken;
     }
     await session.save();
 
-    // Debug: include whether refreshToken was found
+    // Also send device IDs to client as fallback (session may not persist on Vercel)
     return NextResponse.json({
       ...result,
-      _debug: {
-        hasRefreshToken: "refreshToken" in result && !!result.refreshToken,
-        refreshTokenLength: "refreshToken" in result ? result.refreshToken?.length : 0,
-        resultStep: result.step,
-        resultKeys: Object.keys(result),
-      },
+      _deviceIds: ids,
     });
   } catch (err: unknown) {
     return NextResponse.json(

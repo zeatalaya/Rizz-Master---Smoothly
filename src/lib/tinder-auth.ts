@@ -20,11 +20,23 @@ const root = protobuf.Root.fromJSON(protoJson);
 const AuthGatewayRequest = root.lookupType("AuthGatewayRequest");
 const AuthGatewayResponse = root.lookupType("AuthGatewayResponse");
 
-// Persistent device fingerprint (generated once per server instance)
-const DEVICE_ID = randomUUID().replace(/-/g, "").slice(0, 16);
-const APP_SESSION_ID = randomUUID();
+export interface DeviceIds {
+  deviceId: string;
+  appSessionId: string;
+  installId: string;
+  funnelSessionId: string;
+}
 
-function getHeaders(): Record<string, string> {
+export function generateDeviceIds(): DeviceIds {
+  return {
+    deviceId: randomUUID().replace(/-/g, "").slice(0, 16),
+    appSessionId: randomUUID(),
+    installId: Buffer.from(randomUUID()).toString("base64").slice(0, 22),
+    funnelSessionId: randomUUID(),
+  };
+}
+
+function getHeaders(ids: DeviceIds): Record<string, string> {
   return {
     "user-agent": "Tinder Android Version 14.22.0",
     "app-version": "4525",
@@ -37,13 +49,11 @@ function getHeaders(): Record<string, string> {
     "accept-language": "en-US",
     "accept-encoding": "gzip",
     "content-type": "application/x-protobuf",
-    "persistent-device-id": DEVICE_ID,
-    "app-session-id": APP_SESSION_ID,
-    "install-id": Buffer.from(randomUUID()).toString("base64").slice(0, 22),
+    "persistent-device-id": ids.deviceId,
+    "app-session-id": ids.appSessionId,
+    "install-id": ids.installId,
     "app-session-time-elapsed": (Math.random() * 2).toFixed(3),
-    "funnel-session-id": randomUUID(),
-    "appsflyer-id": randomUUID(),
-    "advertising-id": randomUUID(),
+    "funnel-session-id": ids.funnelSessionId,
   };
 }
 
@@ -71,7 +81,7 @@ export type AuthStep = (
   | { step: "error"; message: string }
 ) & { _rawDebug?: any };
 
-async function sendAuthRequest(payload: Record<string, unknown>): Promise<AuthStep> {
+async function sendAuthRequest(payload: Record<string, unknown>, ids: DeviceIds): Promise<AuthStep> {
   const errMsg = AuthGatewayRequest.verify(payload);
   if (errMsg) return { step: "error", message: `Proto verify: ${errMsg}` };
 
@@ -82,7 +92,7 @@ async function sendAuthRequest(payload: Record<string, unknown>): Promise<AuthSt
   const res = await fetch(AUTH_URL, {
     method: "POST",
     headers: {
-      ...getHeaders(),
+      ...getHeaders(ids),
       "content-length": String(buffer.length),
     },
     body: buffer,
@@ -164,29 +174,27 @@ async function sendAuthRequest(payload: Record<string, unknown>): Promise<AuthSt
   return { step: "error", message: "Unexpected auth response state" };
 }
 
-export async function sendPhoneCode(phone: string): Promise<AuthStep> {
-  return sendAuthRequest({
-    phone: { phone },
-  });
+export async function sendPhoneCode(phone: string, ids: DeviceIds): Promise<AuthStep> {
+  return sendAuthRequest({ phone: { phone } }, ids);
 }
 
-export async function verifyPhoneOtp(phone: string, otp: string, refreshToken: string): Promise<AuthStep> {
+export async function verifyPhoneOtp(phone: string, otp: string, refreshToken: string, ids: DeviceIds): Promise<AuthStep> {
   return sendAuthRequest({
     phoneOtp: {
       phone: { value: phone },
       otp,
       refreshToken,
     },
-  });
+  }, ids);
 }
 
-export async function verifyEmailOtp(otp: string, refreshToken: string): Promise<AuthStep> {
+export async function verifyEmailOtp(otp: string, refreshToken: string, ids: DeviceIds): Promise<AuthStep> {
   return sendAuthRequest({
     emailOtp: {
       otp,
       refreshToken: { value: refreshToken },
     },
-  });
+  }, ids);
 }
 
 export async function validateToken(token: string): Promise<{ valid: boolean; name?: string; error?: string }> {

@@ -1,21 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyPhoneOtp, verifyEmailOtp, validateToken } from "@/lib/tinder-auth";
+import { verifyPhoneOtp, verifyEmailOtp, validateToken, type DeviceIds } from "@/lib/tinder-auth";
 import { getSession } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
   try {
-    const { code, type, phone, refreshToken: clientRefreshToken } = await req.json();
+    const { code, type, phone, refreshToken: clientRefreshToken, deviceIds: clientDeviceIds } = await req.json();
     const session = await getSession();
 
     if (!code || typeof code !== "string") {
       return NextResponse.json({ error: "Code is required" }, { status: 400 });
     }
 
-    // Use client-provided values as fallback (session may not persist across serverless calls)
-    const refreshToken = session.refreshToken || clientRefreshToken;
+    const refreshToken = session.refreshToken || clientRefreshToken || "";
     const phoneNumber = session.phone || phone;
 
-    console.log("[verify-code] session.refreshToken:", !!session.refreshToken, "clientRefreshToken:", !!clientRefreshToken, "phone:", phoneNumber);
+    // Reconstruct device IDs from session or client fallback
+    const ids: DeviceIds = {
+      deviceId: session.deviceId || clientDeviceIds?.deviceId || "",
+      appSessionId: session.appSessionId || clientDeviceIds?.appSessionId || "",
+      installId: session.installId || clientDeviceIds?.installId || "",
+      funnelSessionId: session.funnelSessionId || clientDeviceIds?.funnelSessionId || "",
+    };
+
+    if (!ids.deviceId) {
+      return NextResponse.json({ error: "No device ID. Start over." }, { status: 400 });
+    }
 
     let result;
 
@@ -23,17 +32,16 @@ export async function POST(req: NextRequest) {
       if (!refreshToken) {
         return NextResponse.json({ error: "No refresh token for email step. Start over." }, { status: 400 });
       }
-      result = await verifyEmailOtp(code, refreshToken);
+      result = await verifyEmailOtp(code, refreshToken, ids);
     } else {
       if (!phoneNumber) {
         return NextResponse.json({ error: "No phone number. Start over." }, { status: 400 });
       }
-      // refreshToken may be empty for the phone OTP step — that's OK
-      result = await verifyPhoneOtp(phoneNumber, code, refreshToken || "");
+      result = await verifyPhoneOtp(phoneNumber, code, refreshToken, ids);
     }
 
     if (result.step === "error") {
-      return NextResponse.json({ error: result.message, _rawDebug: result._rawDebug }, { status: 400 });
+      return NextResponse.json({ error: result.message }, { status: 400 });
     }
 
     // Update refresh token if provided
@@ -46,7 +54,6 @@ export async function POST(req: NextRequest) {
       session.tinderToken = result.authToken;
       session.phone = phoneNumber;
 
-      // Validate and get user name
       const validation = await validateToken(result.authToken);
       if (validation.valid) {
         session.userName = validation.name;
