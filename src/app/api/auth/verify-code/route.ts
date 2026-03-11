@@ -4,7 +4,7 @@ import { getSession } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
   try {
-    const { code, type, phone, email, refreshToken: clientRefreshToken, deviceIds: clientDeviceIds } = await req.json();
+    const { code, type, phone, refreshToken: clientRefreshToken, deviceIds: clientDeviceIds } = await req.json();
     const session = await getSession();
 
     if (!code || typeof code !== "string") {
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
       if (!refreshToken) {
         return NextResponse.json({ error: "No refresh token for email step. Start over." }, { status: 400 });
       }
-      result = await verifyEmailOtp(code, refreshToken, ids, email);
+      result = await verifyEmailOtp(code, refreshToken, ids);
     } else {
       if (!phoneNumber) {
         return NextResponse.json({ error: "No phone number. Start over." }, { status: 400 });

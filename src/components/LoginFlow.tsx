@@ -23,18 +23,21 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
 
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
   const emailOtpRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const submittingRef = useRef(false);
 
   // Auto-submit when all OTP digits filled
   useEffect(() => {
-    if (step === "phone_otp" && otp.every((d) => d !== "")) {
-      submitOtp(otp.join(""), "phone");
+    if (step === "phone_otp" && otp.every((d) => d !== "") && !submittingRef.current) {
+      submittingRef.current = true;
+      submitOtp(otp.join(""), "phone").finally(() => { submittingRef.current = false; });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [otp, step]);
 
   useEffect(() => {
-    if (step === "email_otp" && emailOtp.every((d) => d !== "")) {
-      submitOtp(emailOtp.join(""), "email");
+    if (step === "email_otp" && emailOtp.every((d) => d !== "") && !submittingRef.current) {
+      submittingRef.current = true;
+      submitOtp(emailOtp.join(""), "email").finally(() => { submittingRef.current = false; });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emailOtp, step]);
@@ -130,7 +133,7 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
       const res = await fetch("/api/auth/verify-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, type, phone: phone.trim(), email: maskedEmail, refreshToken, deviceIds }),
+        body: JSON.stringify({ code, type, phone: phone.trim(), refreshToken, deviceIds }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
