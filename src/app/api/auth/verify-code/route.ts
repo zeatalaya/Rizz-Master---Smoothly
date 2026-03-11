@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (result.step === "error") {
-      return NextResponse.json({ error: result.message }, { status: 400 });
+      return NextResponse.json({ error: result.message, _rawDebug: result._rawDebug }, { status: 400 });
     }
 
     // Update refresh token if provided

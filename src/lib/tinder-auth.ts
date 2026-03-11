@@ -62,12 +62,14 @@ function unwrapValue(obj: any): any {
   return obj;
 }
 
-export type AuthStep =
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AuthStep = (
   | { step: "otp_sent"; refreshToken: string; phone: string; otpLength: number; smsSent: boolean }
   | { step: "email_required"; refreshToken: string; email: string; otpLength: number }
   | { step: "login_success"; authToken: string; refreshToken: string; userId: string }
   | { step: "captcha_required"; referenceToken: string }
-  | { step: "error"; message: string };
+  | { step: "error"; message: string }
+) & { _rawDebug?: any };
 
 async function sendAuthRequest(payload: Record<string, unknown>): Promise<AuthStep> {
   const errMsg = AuthGatewayRequest.verify(payload);
@@ -95,29 +97,30 @@ async function sendAuthRequest(payload: Record<string, unknown>): Promise<AuthSt
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const decoded = AuthGatewayResponse.decode(respBuffer) as any;
 
+  // Build debug payload
+  const _rawDebug = {
+    hex: respBuffer.toString("hex").slice(0, 500),
+    decoded: JSON.stringify(AuthGatewayResponse.toObject(decoded, { defaults: false, longs: String })),
+    status: res.status,
+  };
+
   // Check for error
   if (decoded.error && decoded.error.code && decoded.error.code !== 0) {
-    return { step: "error", message: decoded.error.message || `Auth error (${decoded.error.code})` };
+    return { step: "error", message: decoded.error.message || `Auth error (${decoded.error.code})`, _rawDebug } as AuthStep;
   }
 
   const resp = decoded;
 
-  // Debug: log the decoded response structure
-  console.log("[tinder-auth] Response keys:", Object.keys(resp).filter(k => resp[k] != null));
-  if (resp.validatePhoneOtpState) {
-    console.log("[tinder-auth] validatePhoneOtpState raw:", JSON.stringify(resp.validatePhoneOtpState));
-  }
-
   if (resp.validatePhoneOtpState) {
     const s = resp.validatePhoneOtpState;
     const rt = unwrapValue(s.refreshToken);
-    console.log("[tinder-auth] refreshToken unwrapped:", rt, "type:", typeof rt, "length:", rt?.length);
     return {
       step: "otp_sent",
       refreshToken: rt || "",
       phone: s.phone || "",
       otpLength: unwrapValue(s.otpLength) || 6,
       smsSent: unwrapValue(s.smsSent) ?? true,
+      _rawDebug,
     };
   }
 
