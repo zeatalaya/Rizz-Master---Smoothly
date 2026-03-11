@@ -45,11 +45,16 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
     refs: React.MutableRefObject<(HTMLInputElement | null)[]>
   ) => {
     if (!/^\d*$/.test(value)) return;
+    const digit = value.slice(-1);
     const newOtp = [...otpState];
-    newOtp[index] = value.slice(-1);
+    newOtp[index] = digit;
     setOtpState(newOtp);
-    if (value && index < 5) {
-      refs.current[index + 1]?.focus();
+    if (digit && index < 5) {
+      // Use requestAnimationFrame to ensure focus happens after React re-render
+      requestAnimationFrame(() => {
+        refs.current[index + 1]?.focus();
+        refs.current[index + 1]?.select();
+      });
     }
   };
 
@@ -173,13 +178,16 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
         <input
           key={i}
           ref={(el) => { refs.current[i] = el; }}
-          type="tel"
+          type="text"
           inputMode="numeric"
+          pattern="[0-9]*"
+          autoComplete={i === 0 ? "one-time-code" : "off"}
           maxLength={1}
           value={digit}
+          onFocus={(e) => e.target.select()}
           onChange={(e) => handleOtpChange(i, e.target.value, otpState, setOtpState, refs)}
           onKeyDown={(e) => handleOtpKeyDown(i, e, otpState, setOtpState, refs)}
-          className="w-12 h-14 rounded-xl bg-[#111] border border-white/10 text-white text-center text-xl font-mono focus:outline-none focus:border-[#FD297B]/50 transition-colors"
+          className="w-12 h-14 rounded-xl bg-[#111] border border-white/10 text-white text-center text-xl font-mono focus:outline-none focus:border-[#FD297B]/50 transition-colors caret-transparent"
         />
       ))}
     </div>
