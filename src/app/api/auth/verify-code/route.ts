@@ -18,7 +18,16 @@ export async function POST(req: NextRequest) {
     console.log("[verify-code] session.refreshToken:", !!session.refreshToken, "clientRefreshToken:", !!clientRefreshToken, "phone:", phoneNumber);
 
     if (!refreshToken) {
-      return NextResponse.json({ error: "No active auth session. Start over." }, { status: 400 });
+      return NextResponse.json({
+        error: "No active auth session. Start over.",
+        _debug: {
+          sessionRefreshToken: !!session.refreshToken,
+          clientRefreshToken: !!clientRefreshToken,
+          clientRefreshTokenValue: clientRefreshToken?.slice(0, 10) || "empty",
+          phone: !!phone,
+          sessionPhone: !!session.phone,
+        },
+      }, { status: 400 });
     }
 
     let result;

@@ -25,7 +25,16 @@ export async function POST(req: NextRequest) {
     }
     await session.save();
 
-    return NextResponse.json(result);
+    // Debug: include whether refreshToken was found
+    return NextResponse.json({
+      ...result,
+      _debug: {
+        hasRefreshToken: "refreshToken" in result && !!result.refreshToken,
+        refreshTokenLength: "refreshToken" in result ? result.refreshToken?.length : 0,
+        resultStep: result.step,
+        resultKeys: Object.keys(result),
+      },
+    });
   } catch (err: unknown) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Failed to send code" },
