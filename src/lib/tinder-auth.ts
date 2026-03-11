@@ -48,7 +48,7 @@ function getHeaders(ids: DeviceIds): Record<string, string> {
     "x-supported-image-formats": "webp",
     "accept-language": "en-US",
     "accept-encoding": "gzip",
-    "content-type": "application/x-protobuf",
+    "content-type": "application/x-google-protobuf",
     "persistent-device-id": ids.deviceId,
     "app-session-id": ids.appSessionId,
     "install-id": ids.installId,
@@ -72,14 +72,12 @@ function unwrapValue(obj: any): any {
   return obj;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AuthStep = (
+export type AuthStep =
   | { step: "otp_sent"; refreshToken: string; phone: string; otpLength: number; smsSent: boolean }
   | { step: "email_required"; refreshToken: string; email: string; otpLength: number }
   | { step: "login_success"; authToken: string; refreshToken: string; userId: string }
   | { step: "captcha_required"; referenceToken: string }
-  | { step: "error"; message: string }
-) & { _rawDebug?: any };
+  | { step: "error"; message: string };
 
 async function sendAuthRequest(payload: Record<string, unknown>, ids: DeviceIds): Promise<AuthStep> {
   const errMsg = AuthGatewayRequest.verify(payload);
@@ -107,16 +105,9 @@ async function sendAuthRequest(payload: Record<string, unknown>, ids: DeviceIds)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const decoded = AuthGatewayResponse.decode(respBuffer) as any;
 
-  // Build debug payload
-  const _rawDebug = {
-    hex: respBuffer.toString("hex").slice(0, 500),
-    decoded: JSON.stringify(AuthGatewayResponse.toObject(decoded, { defaults: false, longs: String })),
-    status: res.status,
-  };
-
   // Check for error
   if (decoded.error && decoded.error.code && decoded.error.code !== 0) {
-    return { step: "error", message: decoded.error.message || `Auth error (${decoded.error.code})`, _rawDebug } as AuthStep;
+    return { step: "error", message: decoded.error.message || `Auth error (${decoded.error.code})` };
   }
 
   const resp = decoded;
@@ -130,7 +121,6 @@ async function sendAuthRequest(payload: Record<string, unknown>, ids: DeviceIds)
       phone: s.phone || "",
       otpLength: unwrapValue(s.otpLength) || 6,
       smsSent: unwrapValue(s.smsSent) ?? true,
-      _rawDebug,
     };
   }
 
@@ -179,13 +169,16 @@ export async function sendPhoneCode(phone: string, ids: DeviceIds): Promise<Auth
 }
 
 export async function verifyPhoneOtp(phone: string, otp: string, refreshToken: string, ids: DeviceIds): Promise<AuthStep> {
-  return sendAuthRequest({
-    phoneOtp: {
-      phone: { value: phone },
-      otp,
-      refreshToken,
-    },
-  }, ids);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const phoneOtp: any = {
+    phone: { value: phone },
+    otp,
+  };
+  // Only include refreshToken if non-empty (StringValue wrapper)
+  if (refreshToken) {
+    phoneOtp.refreshToken = { value: refreshToken };
+  }
+  return sendAuthRequest({ phoneOtp }, ids);
 }
 
 export async function verifyEmailOtp(otp: string, refreshToken: string, ids: DeviceIds): Promise<AuthStep> {

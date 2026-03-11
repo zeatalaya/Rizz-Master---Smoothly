@@ -14,7 +14,7 @@
       "fields": {
         "phone": { "type": "StringValue", "id": 1 },
         "otp": { "type": "string", "id": 2 },
-        "refreshToken": { "type": "string", "id": 3 }
+        "refreshToken": { "type": "StringValue", "id": 3 }
       }
     },
     "Email": {
