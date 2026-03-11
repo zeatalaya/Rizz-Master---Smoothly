@@ -49,7 +49,16 @@ function getHeaders(): Record<string, string> {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function unwrapValue(obj: any): any {
-  if (obj && typeof obj === "object" && "value" in obj) return obj.value;
+  if (obj === null || obj === undefined) return obj;
+  // protobufjs may wrap values as {value: ...} or as message objects with toJSON
+  if (typeof obj === "object") {
+    if (typeof obj.toJSON === "function") {
+      const json = obj.toJSON();
+      if (json && typeof json === "object" && "value" in json) return json.value;
+      return json;
+    }
+    if ("value" in obj) return obj.value;
+  }
   return obj;
 }
 
@@ -93,11 +102,19 @@ async function sendAuthRequest(payload: Record<string, unknown>): Promise<AuthSt
 
   const resp = decoded;
 
+  // Debug: log the decoded response structure
+  console.log("[tinder-auth] Response keys:", Object.keys(resp).filter(k => resp[k] != null));
+  if (resp.validatePhoneOtpState) {
+    console.log("[tinder-auth] validatePhoneOtpState raw:", JSON.stringify(resp.validatePhoneOtpState));
+  }
+
   if (resp.validatePhoneOtpState) {
     const s = resp.validatePhoneOtpState;
+    const rt = unwrapValue(s.refreshToken);
+    console.log("[tinder-auth] refreshToken unwrapped:", rt, "type:", typeof rt, "length:", rt?.length);
     return {
       step: "otp_sent",
-      refreshToken: unwrapValue(s.refreshToken) || "",
+      refreshToken: rt || "",
       phone: s.phone || "",
       otpLength: unwrapValue(s.otpLength) || 6,
       smsSent: unwrapValue(s.smsSent) ?? true,
