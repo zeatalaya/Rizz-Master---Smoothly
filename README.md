@@ -1,36 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Rizz Master — Smoothly
 
-## Getting Started
+Verify your Tinder identity and find out if you're a certified **Rizz Master**.
 
-First, run the development server:
+Login through Tinder's web interface, and your stats are evaluated against the Rizz Master criteria — all running locally in a secure TEE (your token never leaves your machine).
+
+## Rizz Master Criteria
+
+| Criterion | Requirement |
+|-----------|------------|
+| Matches | 10+ |
+| Conversations started with replies | 5+ |
+| Likes received | 50+ |
+
+Meet all three and you earn the **Rizz Master** badge.
+
+## Quick Start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/zeatalaya/Rizz-Master---Smoothly.git
+cd Rizz-Master---Smoothly
+npm install
+./start.sh
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+This starts the app at `http://localhost:3069` and opens your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Click **"Verify with Tinder"** to login through Tinder's website. Your token is captured automatically and your stats are evaluated.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Requirements
 
-## Learn More
+- Node.js 18+
+- Chrome (for Tinder web login via Puppeteer)
 
-To learn more about Next.js, take a look at the following resources:
+## How It Works
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Click "Verify with Tinder" — opens a Tinder login window
+2. Login normally (Google, Facebook, or phone)
+3. Auth token is captured and sealed in an encrypted session (AES-256)
+4. Your Tinder stats are fetched and evaluated against the criteria
+5. You see your result: Rizz Master or not (yet)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Security (TEE Pattern)
 
-## Deploy on Vercel
+- Auth token is encrypted at rest using iron-session (AES-256)
+- httpOnly cookie — inaccessible to client-side JavaScript
+- All API calls run locally from your machine — nothing goes through cloud servers
+- Token never leaves your device
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Tech Stack
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Next.js 16 (App Router)
+- Tinder v3 Protobuf Auth
+- Puppeteer (browser-based login)
+- iron-session (encrypted sessions)
+- Tailwind CSS v4
