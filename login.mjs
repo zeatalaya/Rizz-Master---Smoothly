@@ -126,35 +126,15 @@ async function main() {
 
   console.log(`\n✓ Got auth token (${token.slice(0, 8)}...${token.slice(-4)})`);
 
-  // Close browser
+  // Close the Tinder browser window
   await browser.close();
 
-  // Send token to local app
-  console.log("Connecting to Rizz Master...");
-  try {
-    const res = await fetch(`${APP_URL}/api/auth/set-token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token }),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      console.log(`✓ Logged in as ${data.userName || "User"}!`);
-      console.log(`\n🚀 Opening dashboard...\n`);
-      // Open the app in default browser
-      const { exec } = await import("child_process");
-      exec(`open "${APP_URL}"`);
-    } else {
-      console.log(`\n⚠️  Token might be invalid. Try pasting it manually at ${APP_URL}`);
-      console.log(`Token: ${token}\n`);
-    }
-  } catch {
-    // App might not be running locally — show token for manual use
-    console.log(`\n⚠️  Local app not running. Start it with: npm run rizz`);
-    console.log(`Then paste this token using "Use auth token instead":`);
-    console.log(`\n${token}\n`);
-  }
+  // Open the app in the user's default browser with the token
+  // This sets the session cookie directly in the browser context
+  console.log("🚀 Opening dashboard...\n");
+  const setTokenUrl = `${APP_URL}/api/auth/set-token?token=${encodeURIComponent(token)}`;
+  const { exec } = await import("child_process");
+  exec(`open "${setTokenUrl}"`);
 }
 
 main().catch((err) => {

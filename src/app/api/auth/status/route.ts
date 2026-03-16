@@ -6,5 +6,6 @@ export async function GET() {
   return NextResponse.json({
     authenticated: !!session.tinderToken,
     userName: session.userName || null,
+    verifiedAt: session.verifiedAt || null,
   });
 }

@@ -1,24 +1,31 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import LoginFlow from "./LoginFlow";
-import StatsCard from "./StatsCard";
-import MatchList from "./MatchList";
-import type { TinderStats } from "@/lib/tinder-api";
 
-type View = "loading" | "login" | "fetching" | "dashboard";
+interface VerificationData {
+  userName: string;
+  verified: boolean;
+  verifiedAt: string;
+}
+
+type View = "loading" | "login" | "verified";
 
 export default function Dashboard() {
   const [view, setView] = useState<View>("loading");
-  const [stats, setStats] = useState<TinderStats | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [verification, setVerification] = useState<VerificationData | null>(null);
 
   const checkAuth = useCallback(async () => {
     try {
       const res = await fetch("/api/auth/status");
       const data = await res.json();
       if (data.authenticated) {
-        fetchStats();
+        setVerification({
+          userName: data.userName || "User",
+          verified: true,
+          verifiedAt: data.verifiedAt || new Date().toISOString(),
+        });
+        setView("verified");
       } else {
         setView("login");
       }
@@ -31,30 +38,9 @@ export default function Dashboard() {
     checkAuth();
   }, [checkAuth]);
 
-  const fetchStats = async () => {
-    setView("fetching");
-    setError(null);
-    try {
-      const res = await fetch("/api/tinder-stats");
-      const data = await res.json();
-      if (!res.ok) {
-        if (res.status === 401) {
-          setView("login");
-          return;
-        }
-        throw new Error(data.error);
-      }
-      setStats(data);
-      setView("dashboard");
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load stats");
-      setView("dashboard");
-    }
-  };
-
   const logout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
-    setStats(null);
+    setVerification(null);
     setView("login");
   };
 
@@ -76,21 +62,13 @@ export default function Dashboard() {
             </span>
           </div>
 
-          {view === "dashboard" && (
-            <div className="flex items-center gap-3">
-              <button
-                onClick={fetchStats}
-                className="px-3 py-1.5 rounded-lg bg-white/5 text-gray-400 hover:bg-white/10 text-sm transition-colors"
-              >
-                Refresh
-              </button>
-              <button
-                onClick={logout}
-                className="px-3 py-1.5 rounded-lg bg-white/5 text-gray-400 hover:bg-white/10 text-sm transition-colors"
-              >
-                Logout
-              </button>
-            </div>
+          {view === "verified" && (
+            <button
+              onClick={logout}
+              className="px-3 py-1.5 rounded-lg bg-white/5 text-gray-400 hover:bg-white/10 text-sm transition-colors"
+            >
+              Disconnect
+            </button>
           )}
         </div>
       </header>
@@ -103,7 +81,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Login */}
+        {/* Login / Verify */}
         {view === "login" && (
           <div className="py-16">
             <div className="text-center mb-10">
@@ -112,110 +90,121 @@ export default function Dashboard() {
                   Rizz Master
                 </span>
               </h1>
-              <p className="text-gray-500">Smoothly analyze your Tinder game</p>
+              <p className="text-gray-500">Verify your Tinder identity to unlock access</p>
             </div>
-            <LoginFlow onAuthenticated={() => fetchStats()} />
+            <LoginFlow onAuthenticated={() => checkAuth()} />
           </div>
         )}
 
-        {/* Fetching data */}
-        {view === "fetching" && (
-          <div className="flex flex-col items-center justify-center py-32 gap-4">
-            <div className="w-10 h-10 rounded-full border-2 border-[#FD297B] border-t-transparent animate-spin" />
-            <p className="text-gray-500">Analyzing your rizz...</p>
-          </div>
-        )}
-
-        {/* Dashboard */}
-        {view === "dashboard" && stats && (
-          <div className="space-y-6 pb-12">
-            {/* Welcome */}
-            <div>
-              <h1 className="text-2xl font-bold">
-                Hey {stats.myName} <span className="text-2xl">👋</span>
-              </h1>
-              <p className="text-gray-500 text-sm mt-1">Here&apos;s your rizz report</p>
-            </div>
-
-            {/* Primary stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <StatsCard icon="🔥" label="Total Matches" value={stats.totalMatches} />
-              <StatsCard icon="💘" label="Likes You" value={stats.likesYouCount} />
-              <StatsCard icon="💬" label="Conversations" value={stats.totalConversations} />
-              <StatsCard
-                icon="📊"
-                label="Conv. Rate"
-                value={stats.conversationRate !== null ? `${stats.conversationRate.toFixed(1)}%` : "—"}
-              />
-            </div>
-
-            {/* Conversation breakdown */}
-            <div>
-              <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-3">
-                Conversation Breakdown
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <StatsCard icon="🚀" label="You Started" value={stats.conversationsYouStarted} />
-                <StatsCard icon="💌" label="Got Replies" value={stats.conversationsStartedWithReply} />
-                <StatsCard
-                  icon="✨"
-                  label="Reply Rate"
-                  value={stats.replyRate !== null ? `${stats.replyRate.toFixed(1)}%` : "—"}
-                />
-                <StatsCard icon="😏" label="They Started" value={stats.conversationsTheyStarted} />
-              </div>
-            </div>
-
-            {/* Visual bar: who starts convos */}
-            {stats.totalConversations > 0 && (
-              <div className="rounded-2xl bg-[#1a1a1a] border border-white/5 p-5">
-                <h3 className="text-sm text-gray-400 mb-3">Who starts conversations?</h3>
-                <div className="flex rounded-full overflow-hidden h-3">
-                  <div
-                    className="transition-all duration-700"
-                    style={{
-                      width: `${(stats.conversationsYouStarted / stats.totalConversations) * 100}%`,
-                      background: "var(--tinder-gradient)",
-                    }}
-                  />
-                  <div
-                    className="bg-gray-600 transition-all duration-700"
-                    style={{
-                      width: `${(stats.conversationsTheyStarted / stats.totalConversations) * 100}%`,
-                    }}
-                  />
+        {/* Verified */}
+        {view === "verified" && verification && (
+          <div className="py-16">
+            <div className="max-w-md mx-auto">
+              {/* Verified badge card */}
+              <div className="rounded-3xl bg-[#1a1a1a] border border-white/5 p-8 text-center">
+                {/* Animated checkmark */}
+                <div className="flex justify-center mb-6">
+                  <div className="w-24 h-24 rounded-full flex items-center justify-center relative">
+                    <div className="absolute inset-0 rounded-full animate-pulse opacity-20" style={{ background: "var(--tinder-gradient)" }} />
+                    <div className="w-20 h-20 rounded-full flex items-center justify-center" style={{ background: "var(--tinder-gradient)" }}>
+                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between mt-2 text-xs text-gray-500">
-                  <span>You ({stats.conversationsYouStarted})</span>
-                  <span>Them ({stats.conversationsTheyStarted})</span>
+
+                {/* Verified status */}
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-green-500/10 border border-green-500/20 mb-5">
+                  <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                  <span className="text-sm font-medium text-green-400">Verified</span>
+                </div>
+
+                <h2 className="text-2xl font-bold text-white mb-1">
+                  {verification.userName}
+                </h2>
+                <p className="text-gray-500 text-sm mb-8">
+                  Tinder identity confirmed via TEE
+                </p>
+
+                {/* TEE security info */}
+                <div className="rounded-2xl bg-[#111] border border-white/5 p-4 mb-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                    <span className="text-xs font-medium text-green-400">Secure TEE Verification</span>
+                  </div>
+                  <ul className="space-y-2 text-left">
+                    <li className="flex items-start gap-2 text-xs text-gray-400">
+                      <span className="text-green-500 mt-0.5">&#10003;</span>
+                      Token encrypted at rest (AES-256)
+                    </li>
+                    <li className="flex items-start gap-2 text-xs text-gray-400">
+                      <span className="text-green-500 mt-0.5">&#10003;</span>
+                      Credentials never leave your machine
+                    </li>
+                    <li className="flex items-start gap-2 text-xs text-gray-400">
+                      <span className="text-green-500 mt-0.5">&#10003;</span>
+                      httpOnly cookie — inaccessible to JS
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Access badges */}
+                <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">
+                  Unlocked Access
+                </h3>
+                <div className="grid grid-cols-2 gap-2">
+                  <AccessBadge label="Smoothly Premium" icon="star" unlocked />
+                  <AccessBadge label="Rizz Analytics" icon="chart" unlocked />
+                  <AccessBadge label="Match Insights" icon="heart" unlocked />
+                  <AccessBadge label="Vibe Check" icon="shield" unlocked />
                 </div>
               </div>
-            )}
-
-            {/* Match list */}
-            <div>
-              <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-3">
-                Matches ({stats.matches.length})
-              </h2>
-              <MatchList matches={stats.matches} />
             </div>
-          </div>
-        )}
-
-        {/* Error */}
-        {view === "dashboard" && error && !stats && (
-          <div className="text-center py-16">
-            <p className="text-red-400 mb-4">{error}</p>
-            <button
-              onClick={fetchStats}
-              className="px-4 py-2 rounded-lg text-sm font-medium text-white"
-              style={{ background: "var(--tinder-gradient)" }}
-            >
-              Retry
-            </button>
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+function AccessBadge({ label, icon, unlocked }: { label: string; icon: string; unlocked: boolean }) {
+  const icons: Record<string, React.ReactNode> = {
+    star: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+      </svg>
+    ),
+    chart: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" />
+      </svg>
+    ),
+    heart: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+      </svg>
+    ),
+    shield: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      </svg>
+    ),
+  };
+
+  return (
+    <div className={`rounded-xl border p-3 flex items-center gap-2 transition-all ${
+      unlocked
+        ? "bg-white/5 border-white/10 text-white"
+        : "bg-white/[0.02] border-white/5 text-gray-600"
+    }`}>
+      <div className={unlocked ? "text-[#FD297B]" : "text-gray-700"}>
+        {icons[icon]}
+      </div>
+      <span className="text-xs font-medium">{label}</span>
     </div>
   );
 }

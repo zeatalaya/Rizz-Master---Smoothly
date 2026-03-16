@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
     // If login success, seal the auth token in the encrypted session (TEE)
     if (result.step === "login_success") {
       session.tinderToken = result.authToken;
+      session.verifiedAt = new Date().toISOString();
       session.phone = phoneNumber;
 
       const validation = await validateToken(result.authToken);

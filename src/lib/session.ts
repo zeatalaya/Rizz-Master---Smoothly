@@ -20,6 +20,7 @@ export interface SessionData {
   refreshToken?: string;
   phone?: string;
   userName?: string;
+  verifiedAt?: string;
   deviceId?: string;
   appSessionId?: string;
   installId?: string;
