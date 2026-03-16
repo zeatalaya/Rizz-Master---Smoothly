@@ -1,8 +1,5 @@
 import crypto from "crypto";
 
-const DSTACK_ENDPOINT =
-  process.env.DSTACK_SIMULATOR_ENDPOINT || "unix:///var/run/dstack.sock";
-
 let _client: ReturnType<typeof createLazyClient> | null = null;
 
 function createLazyClient() {
@@ -13,7 +10,10 @@ function createLazyClient() {
     async getClient() {
       if (!clientPromise) {
         clientPromise = import("@phala/dstack-sdk").then((mod) => {
-          return new mod.DstackClient(DSTACK_ENDPOINT);
+          // Use simulator endpoint if set, otherwise let SDK auto-detect
+          // (default: /var/run/dstack.sock)
+          const endpoint = process.env.DSTACK_SIMULATOR_ENDPOINT;
+          return endpoint ? new mod.DstackClient(endpoint) : new mod.DstackClient();
         });
       }
       return clientPromise;
@@ -65,9 +65,7 @@ export async function deriveKey(path: string): Promise<Uint8Array> {
 export async function isDstackAvailable(): Promise<boolean> {
   try {
     const client = await getClientWrapper().getClient();
-    // Try a simple quote to verify connectivity
-    await client.getQuote("");
-    return true;
+    return await client.isReachable();
   } catch {
     return false;
   }
