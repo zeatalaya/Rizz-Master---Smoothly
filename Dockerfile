@@ -1,3 +1,16 @@
+FROM node:20-slim AS builder
+
+WORKDIR /app
+
+# Install ALL dependencies (including devDeps needed for build)
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Copy source and build
+COPY . .
+RUN npm run build
+
+# --- Production image ---
 FROM node:20-slim
 
 # Install Chrome dependencies for Puppeteer
@@ -21,25 +34,20 @@ RUN apt-get update && apt-get install -y \
     --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
-# Tell Puppeteer to use system Chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 WORKDIR /app
 
-# Install dependencies
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+# Copy standalone build from builder
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
 
-# Copy source and build
-COPY . .
-RUN npm run build
-
-# Next.js standalone output
 ENV NODE_ENV=production
 ENV PORT=3069
 ENV HOSTNAME=0.0.0.0
 
 EXPOSE 3069
 
-CMD ["node", ".next/standalone/server.js"]
+CMD ["node", "server.js"]

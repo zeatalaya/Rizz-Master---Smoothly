@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface LoginFlowProps {
   onAuthenticated: () => void;
@@ -13,6 +13,16 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
   const [error, setError] = useState<string | null>(null);
   const [manualToken, setManualToken] = useState("");
   const [loading, setLoading] = useState(false);
+  const [puppeteerAvailable, setPuppeteerAvailable] = useState<boolean | null>(null);
+  const [showTokenHelp, setShowTokenHelp] = useState(false);
+
+  // Check if Puppeteer login is available (only works locally with Chrome)
+  useEffect(() => {
+    fetch("/api/auth/capabilities")
+      .then((r) => r.json())
+      .then((d) => setPuppeteerAvailable(d.puppeteer))
+      .catch(() => setPuppeteerAvailable(false));
+  }, []);
 
   const startTinderLogin = async () => {
     setStep("verifying");
@@ -54,6 +64,9 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
     }
   };
 
+  // Show token input as primary when Puppeteer isn't available
+  const showTokenPrimary = puppeteerAvailable === false;
+
   return (
     <div className="max-w-sm mx-auto">
       <div className="rounded-3xl bg-[#1a1a1a] border border-white/5 p-8">
@@ -72,11 +85,11 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
           </svg>
-          <span className="text-[10px] text-green-400">Secure TEE — token never leaves your machine</span>
+          <span className="text-[10px] text-green-400">Secure TEE — token never leaves this server</span>
         </div>
 
-        {/* Idle — main verify button */}
-        {step === "idle" && (
+        {/* Idle — main view */}
+        {step === "idle" && !showTokenPrimary && (
           <div className="space-y-4">
             <div className="text-center mb-4">
               <h2 className="text-lg font-bold text-white">Verify your identity</h2>
@@ -104,6 +117,76 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
                 Use auth token instead
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Token input as primary (hosted/Docker) or secondary */}
+        {(step === "token_input" || (step === "idle" && showTokenPrimary)) && (
+          <div className="space-y-4">
+            <div className="text-center mb-4">
+              <h2 className="text-lg font-bold text-white">Verify your identity</h2>
+              <p className="text-gray-500 text-xs mt-1">
+                Paste your Tinder auth token to verify your account
+              </p>
+            </div>
+
+            <input
+              type="text"
+              value={manualToken}
+              onChange={(e) => setManualToken(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submitToken()}
+              placeholder="Paste your auth token here"
+              className="w-full px-4 py-3.5 rounded-xl bg-[#111] border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-[#FD297B]/50 text-center text-sm font-mono"
+              autoFocus
+            />
+
+            <button
+              onClick={submitToken}
+              disabled={loading || !manualToken.trim()}
+              className="w-full py-3.5 rounded-xl font-semibold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98]"
+              style={{ background: "var(--tinder-gradient)" }}
+            >
+              {loading ? "Verifying..." : "Verify"}
+            </button>
+
+            {/* How to get token */}
+            <button
+              onClick={() => setShowTokenHelp(!showTokenHelp)}
+              className="w-full py-2 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+            >
+              {showTokenHelp ? "Hide instructions" : "How do I get my auth token?"}
+            </button>
+
+            {showTokenHelp && (
+              <div className="rounded-xl bg-[#111] border border-white/10 p-4 text-left space-y-3">
+                <div className="space-y-2">
+                  <p className="text-[11px] text-gray-300 font-medium">From Tinder Web:</p>
+                  <ol className="text-[11px] text-gray-500 space-y-1.5 list-decimal list-inside">
+                    <li>Open <span className="text-gray-300">tinder.com</span> and log in</li>
+                    <li>Open DevTools (<span className="text-gray-300 font-mono">F12</span> or <span className="text-gray-300 font-mono">Cmd+Opt+I</span>)</li>
+                    <li>Go to <span className="text-gray-300">Network</span> tab</li>
+                    <li>Filter by <span className="text-gray-300 font-mono">api.gotinder.com</span></li>
+                    <li>Click any request and find the <span className="text-gray-300 font-mono">X-Auth-Token</span> header</li>
+                    <li>Copy that value and paste it above</li>
+                  </ol>
+                </div>
+                <div className="border-t border-white/5 pt-2">
+                  <p className="text-[10px] text-gray-600">
+                    Your token is encrypted (AES-256) and only used to fetch your stats. It never leaves this server.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Back to Puppeteer login if available */}
+            {puppeteerAvailable && step === "token_input" && (
+              <button
+                onClick={() => { setStep("idle"); setError(null); }}
+                className="w-full py-2 text-xs text-gray-500 hover:text-gray-300"
+              >
+                Back to Tinder login
+              </button>
+            )}
           </div>
         )}
 
@@ -141,44 +224,6 @@ export default function LoginFlow({ onAuthenticated }: LoginFlowProps) {
             <p className="text-center text-[10px] text-gray-600">
               This window will close automatically after login
             </p>
-          </div>
-        )}
-
-        {/* Token input */}
-        {step === "token_input" && (
-          <div className="space-y-4">
-            <div className="text-center mb-4">
-              <h2 className="text-lg font-bold text-white">Enter Auth Token</h2>
-              <p className="text-gray-500 text-xs mt-1">
-                Paste your Tinder auth token to verify
-              </p>
-            </div>
-
-            <input
-              type="text"
-              value={manualToken}
-              onChange={(e) => setManualToken(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && submitToken()}
-              placeholder="Paste your auth token here"
-              className="w-full px-4 py-3.5 rounded-xl bg-[#111] border border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-[#FD297B]/50 text-center text-sm font-mono"
-              autoFocus
-            />
-
-            <button
-              onClick={submitToken}
-              disabled={loading || !manualToken.trim()}
-              className="w-full py-3.5 rounded-xl font-semibold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98]"
-              style={{ background: "var(--tinder-gradient)" }}
-            >
-              {loading ? "Verifying..." : "Verify"}
-            </button>
-
-            <button
-              onClick={() => { setStep("idle"); setError(null); }}
-              className="w-full py-2 text-xs text-gray-500 hover:text-gray-300"
-            >
-              Back to Tinder login
-            </button>
           </div>
         )}
 
