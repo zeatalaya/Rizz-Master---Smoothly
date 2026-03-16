@@ -6,12 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "rizz": "next dev --port 3069 & sleep 2 && open http://localhost:3069",
+    "login": "node login.mjs"
   },
   "dependencies": {
     "iron-session": "^8.0.4",
     "next": "16.1.6",
     "protobufjs": "^8.0.0",
+    "puppeteer": "^24.39.1",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
