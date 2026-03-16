@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { fetchTinderStats } from "@/lib/tinder-api";
+import { attestRizzMasterResult, isDstackAvailable } from "@/lib/dstack";
 
 export async function GET() {
   try {
@@ -18,7 +19,28 @@ export async function GET() {
       await session.save();
     }
 
-    return NextResponse.json(stats);
+    // Attempt TEE attestation of the evaluation result
+    let attestation = null;
+    const teeAvailable = await isDstackAvailable();
+    if (teeAvailable) {
+      try {
+        attestation = await attestRizzMasterResult({
+          userId: stats.myId,
+          userName: stats.myName,
+          isRizzMaster:
+            stats.totalMatches >= 10 &&
+            stats.conversationsStartedWithReply >= 5 &&
+            stats.likesYouCount >= 50,
+          totalMatches: stats.totalMatches,
+          conversationsStartedWithReply: stats.conversationsStartedWithReply,
+          likesYouCount: stats.likesYouCount,
+        });
+      } catch {
+        // Attestation failed but stats are still valid
+      }
+    }
+
+    return NextResponse.json({ ...stats, attestation, teeVerified: !!attestation });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     if (message.includes("401")) {

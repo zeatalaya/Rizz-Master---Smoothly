@@ -52,6 +52,8 @@ export default function Dashboard() {
   const [criteria, setCriteria] = useState<RizzCriterion[]>([]);
   const [isRizzMaster, setIsRizzMaster] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [teeVerified, setTeeVerified] = useState(false);
+  const [attestationQuote, setAttestationQuote] = useState<string | null>(null);
 
   const checkAuth = useCallback(async () => {
     try {
@@ -87,6 +89,8 @@ export default function Dashboard() {
       }
       setStats(data);
       setUserName(data.myName || userName);
+      setTeeVerified(!!data.teeVerified);
+      setAttestationQuote(data.attestation?.quote || null);
       const result = evaluateRizzMaster(data);
       setCriteria(result.criteria);
       setIsRizzMaster(result.isRizzMaster);
@@ -255,18 +259,43 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* TEE security */}
-              <div className="rounded-2xl bg-[#1a1a1a] border border-white/5 p-4">
+              {/* TEE attestation */}
+              <div className={`rounded-2xl border p-4 ${
+                teeVerified
+                  ? "bg-green-500/5 border-green-500/20"
+                  : "bg-[#1a1a1a] border-white/5"
+              }`}>
                 <div className="flex items-center gap-2 mb-2">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                  </svg>
-                  <span className="text-[10px] font-medium text-green-400">Verified via Secure TEE</span>
+                  {teeVerified ? (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                      <polyline points="9 12 11.5 14.5 15 9.5" />
+                    </svg>
+                  ) : (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                  )}
+                  <span className={`text-[10px] font-medium ${teeVerified ? "text-green-400" : "text-gray-500"}`}>
+                    {teeVerified ? "TDX Attestation Verified" : "TEE not available (run in dstack)"}
+                  </span>
                 </div>
                 <p className="text-[10px] text-gray-600">
-                  Token encrypted (AES-256), httpOnly, never leaves your machine
+                  {teeVerified
+                    ? "Evaluation computed inside Intel TDX Confidential VM with hardware attestation"
+                    : "Deploy with docker-compose to enable hardware TEE attestation via dstack"}
                 </p>
+                {attestationQuote && (
+                  <details className="mt-2">
+                    <summary className="text-[10px] text-gray-500 cursor-pointer hover:text-gray-400">
+                      View TDX Quote
+                    </summary>
+                    <pre className="mt-1 text-[9px] text-gray-600 break-all whitespace-pre-wrap max-h-24 overflow-y-auto bg-black/30 rounded p-2">
+                      {attestationQuote}
+                    </pre>
+                  </details>
+                )}
               </div>
             </div>
           </div>

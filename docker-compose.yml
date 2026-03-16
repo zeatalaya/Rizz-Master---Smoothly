@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  # dstack TEE simulator for local development
+  tappd-simulator:
+    image: phalanetwork/tappd-simulator:latest
+    ports:
+      - "8090:8090"
+
+  rizz-master:
+    build: .
+    ports:
+      - "3069:3069"
+    environment:
+      - NODE_ENV=production
+      - DSTACK_SIMULATOR_ENDPOINT=http://tappd-simulator:8090
+      - SESSION_SECRET=${SESSION_SECRET:-TEE-rizz-master-smoothly-32char-secret-key!!}
+    depends_on:
+      - tappd-simulator
